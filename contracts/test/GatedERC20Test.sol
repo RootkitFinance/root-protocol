@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: K-K-K-KORA!!
+// SPDX-License-Identifier: J-J-J-JENGA!!!
 pragma solidity ^0.7.4;
 
 import "../GatedERC20.sol";

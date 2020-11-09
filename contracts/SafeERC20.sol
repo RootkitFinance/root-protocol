@@ -1,5 +1,10 @@
-// SPDX-License-Identifier: K-K-K-KORA!!
+// SPDX-License-Identifier: J-J-J-JENGA!!!
 pragma solidity ^0.7.4;
+
+/* ROOTKIT:
+Modified to remove some junk
+Also modified to remove silly restrictions (traps!) within safeApprove
+*/
 
 import "./IERC20.sol";
 import "./SafeMath.sol";

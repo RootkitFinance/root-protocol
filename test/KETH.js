@@ -4,15 +4,13 @@ const { expect } = require("chai");
 
 
 describe("KETH", function() {
-    let weth, keth, owner, kora;
+    let weth, keth, owner;
 
     beforeEach(async function() {
         [owner] = await ethers.getSigners();
         weth = await createWETH();
-        const koraFactory = await ethers.getContractFactory("Kora");
-        kora = await koraFactory.deploy();
         const kethFactory = await ethers.getContractFactory("KETH");
-        keth = await kethFactory.deploy(weth.address, kora.address);
+        keth = await kethFactory.deploy(weth.address);
     })
 
     it("can deposit and withdraw ETH", async function() {

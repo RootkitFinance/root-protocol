@@ -1,13 +1,19 @@
-// SPDX-License-Identifier: K-K-K-KORA!!
+// SPDX-License-Identifier: J-J-J-JENGA!!!
 pragma solidity ^0.7.4;
 pragma experimental ABIEncoderV2;
+
+/* ROOTKIT:
+A standard ERC20 with an extra hook: An installable transfer
+gate allowing for token tax and burn on transfer
+*/
 
 import "./ERC20.sol";
 import "./ITransferGate.sol";
 import "./Owned.sol";
 import "./SafeMath.sol";
+import "./TokensRecoverable.sol";
 
-abstract contract GatedERC20 is ERC20, Owned
+abstract contract GatedERC20 is ERC20, Owned, TokensRecoverable
 {
     using SafeMath for uint256;
 
@@ -32,7 +38,7 @@ abstract contract GatedERC20 is ERC20, Owned
         ITransferGate _transferGate = transferGate;
         uint256 remaining = amount;
         if (address(_transferGate) != address(0)) {
-            (uint256 burn, TransferTarget[] memory targets) = _transferGate.handleTransfer(msg.sender, sender, recipient, amount);            
+            (uint256 burn, TransferGateTarget[] memory targets) = _transferGate.handleTransfer(msg.sender, sender, recipient, amount);            
             if (burn > 0) {
                 amount = remaining = remaining.sub(burn, "Burn too much");
                 _burn(sender, burn);

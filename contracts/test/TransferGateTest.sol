@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: K-K-K-KORA!!
+// SPDX-License-Identifier: J-J-J-JENGA!!!
 pragma solidity ^0.7.4;
 pragma experimental ABIEncoderV2;
 
@@ -22,12 +22,12 @@ contract TransferGateTest is ITransferGate
     }
 
     function handleTransfer(address, address, address, uint256) external override view
-        returns (uint256 burn, TransferTarget[] memory targets)
+        returns (uint256 burn, TransferGateTarget[] memory targets)
     {
         burn = burnAmount;
 
         uint8 count = (addr1Amount > 0 ? 1 : 0) + (addr2Amount > 0 ? 1 : 0);
-        targets = new TransferTarget[](count);
+        targets = new TransferGateTarget[](count);
 
         if (addr1Amount > 0) {
             targets[--count].destination = sendAddr1;
