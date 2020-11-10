@@ -23,8 +23,8 @@ contract ERC31337 is Owned, WrappedERC20, IERC31337
     
     mapping (address => bool) public override sweepers;
 
-    constructor(IERC20 _wrappedToken)
-        WrappedERC20(_wrappedToken, string(abi.encodePacked("RootKit [", _wrappedToken.name(), "]")), string(abi.encodePacked("RK:", _wrappedToken.symbol())))
+    constructor(IERC20 _wrappedToken, string memory _name, string memory _symbol)
+        WrappedERC20(_wrappedToken, _name, _symbol)
     {
     }
 

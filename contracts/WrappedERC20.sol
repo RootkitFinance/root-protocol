@@ -52,7 +52,8 @@ contract WrappedERC20 is ERC20, IWrappedERC20, TokensRecoverable
         emit Withdrawal(msg.sender, _amount);
     }
 
-    function canRecoverTokens(IERC20 token) internal virtual override view returns (bool) {
+    function canRecoverTokens(IERC20 token) internal virtual override view returns (bool) 
+    {
         return token != this && token != wrappedToken;
     }
 

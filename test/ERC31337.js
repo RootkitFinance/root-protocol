@@ -13,7 +13,7 @@ describe("ERC31337", function() {
         var erc31337Factory = await ethers.getContractFactory("ERC31337");
         const rootKitFactory = await ethers.getContractFactory("RootKit");
         rootKit = await rootKitFactory.deploy();
-        erc31337 = await erc31337Factory.deploy(erc20.address);
+        erc31337 = await erc31337Factory.deploy(erc20.address, "RootKit [Test]", "RK:TST");
         const weth = await createWETH();
         uniswap = await createUniswap(owner, weth);
     });

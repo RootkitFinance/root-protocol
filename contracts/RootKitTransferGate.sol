@@ -117,6 +117,7 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
         require (state != AddressState.AllowedPool, "Already allowed");
         addressStates[pool] = AddressState.AllowedPool;
         allowedPoolTokens.push(token);
+        liquiditySupply[pool] = IERC20(pool).totalSupply();
     }
 
     function safeAddLiquidity(IERC20 token, uint256 tokenAmount, uint256 rootKitAmount, uint256 minTokenAmount, uint256 minRootKitAmount, address to, uint256 deadline) public
@@ -190,7 +191,12 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
         }
     }
 
-    function detectState(address a) internal returns (AddressState state) 
+    function setAddressState(address a, AddressState state) public ownerOnly()
+    {
+        addressStates[a] = state;
+    }
+
+    function detectState(address a) public returns (AddressState state) 
     {
         state = AddressState.NotPool;
         if (a.isContract()) {

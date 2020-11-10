@@ -17,8 +17,8 @@ contract KETH is ERC31337, IWETH
     using SafeMath for uint256;
 
     constructor (IWETH _weth)
-        ERC31337(_weth)
-    {        
+        ERC31337(_weth, "RootKit [Wrapped ETH]", "RK:ETH")
+    {
     }
 
     receive() external payable

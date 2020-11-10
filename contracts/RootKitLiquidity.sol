@@ -13,7 +13,10 @@ import "./IERC20.sol";
 contract RootKitLiquidity is ERC31337
 {
     constructor(IUniswapV2Pair _pair)
-        ERC31337(IERC20(address(_pair)))
+        ERC31337(
+            IERC20(address(_pair)), 
+            string(abi.encodePacked("RootKit [Uniswap ", IERC20(_pair.token0()).name(), " / ", IERC20(_pair.token1()).name(), "]")), 
+            string(abi.encodePacked("RK:", IERC20(_pair.token0()).symbol(), "-", IERC20(_pair.token1()).symbol())))
     {
     }
 
