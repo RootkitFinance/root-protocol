@@ -37,6 +37,25 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "addressStates",
+    "outputs": [
+      {
+        "internalType": "enum RootKitTransferGate.AddressState",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "contract IERC20",
         "name": "token",
         "type": "address"
@@ -157,6 +176,38 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "liquiditySupply",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "mustUpdate",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "owner",
     "outputs": [
@@ -180,7 +231,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "vaultRate",
+        "name": "stakeRate",
         "type": "uint16"
       },
       {
@@ -195,7 +246,7 @@
       },
       {
         "internalType": "address",
-        "name": "vault",
+        "name": "stake",
         "type": "address"
       }
     ],
@@ -301,12 +352,12 @@
       },
       {
         "internalType": "address",
-        "name": "_vault",
+        "name": "_stake",
         "type": "address"
       },
       {
         "internalType": "uint16",
-        "name": "_vaultRate",
+        "name": "_stakeRate",
         "type": "uint16"
       },
       {
