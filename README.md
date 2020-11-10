@@ -37,10 +37,15 @@ Main:
 https://t.me/rootkitfinance
 
 Trading chats:
+
 Price talk:
+
 LP trading:
+
 Developer chat:
+
 Technical support:
+
 Fork discussion:
 
 https://t.me/rootkitfinance
