@@ -1,184 +1,128 @@
 const { expect } = require("chai");
-const { constants, utils } = require("ethers");
 const { ethers } = require("hardhat");
-const { createUniswap, createWETH } = require("./helpers");
+const { createWETH, createUniswap } = require("./helpers");
+const { utils, BigNumber } = require("ethers");
 
 describe("RootKitDistribution", function() {
-    let owner, user1, user2, user3, vault;
-    let rootKit, uniswap, keth, rootKitDistribution, weth, wbtc;
+    let owner, user1, user2, user3, rootKit, rootKitLiquidityGeneration;
+    let rootKitDistribution, weth, keth, uniswap, rootKitVault;
 
     beforeEach(async function() {
-        [owner, user1, user2, user3, vault] = await ethers.getSigners();
-        weth = await createWETH();
-        uniswap = await createUniswap(owner, weth);
+        [owner, user1, user2, user3] = await ethers.getSigners();
         const rootKitFactory = await ethers.getContractFactory("RootKit");
         rootKit = await rootKitFactory.connect(owner).deploy();
-        const rootKitTransferGateFactory = await ethers.getContractFactory("RootKitTransferGate");
-        const rootKitTransferGate = await rootKitTransferGateFactory.connect(owner).deploy(rootKit.address, uniswap.router.address);
+        const rootKitLiquidityGenerationFactory = await ethers.getContractFactory("RootKitLiquidityGeneration");
+        rootKitLiquidityGeneration = await rootKitLiquidityGenerationFactory.connect(owner).deploy(rootKit.address);
+        const rootKitVaultFactory = await ethers.getContractFactory("RootKitVault");
+        rootKitVault = await rootKitVaultFactory.connect(owner).deploy();
+        weth = await createWETH();
+        uniswap = await createUniswap(owner, weth);
         const kethFactory = await ethers.getContractFactory("KETH");
         keth = await kethFactory.connect(owner).deploy(weth.address);
         const rootKitDistributionFactory = await ethers.getContractFactory("RootKitDistribution");
-        rootKitDistribution = await rootKitDistributionFactory.connect(owner).deploy(rootKit.address, uniswap.router.address, keth.address, uniswap.wbtc.address, vault.address);
-        await rootKitTransferGate.connect(owner).setUnrestrictedController(rootKitDistribution.address, true);
-        await rootKit.transfer(rootKitDistribution.address, utils.parseEther("10000"));
+        rootKitDistribution = await rootKitDistributionFactory.connect(owner).deploy(rootKit.address, uniswap.router.address, keth.address, uniswap.wbtc.address, rootKitVault.address);
+        const rootKitTransferGateFactory = await ethers.getContractFactory("RootKitTransferGate");
+        const rootKitTransferGate = await rootKitTransferGateFactory.connect(owner).deploy(rootKit.address, uniswap.router.address);
         await rootKit.connect(owner).setTransferGate(rootKitTransferGate.address);
+        await rootKitTransferGate.connect(owner).setUnrestrictedController(rootKitDistribution.address, true);
         await keth.connect(owner).setSweeper(rootKitDistribution.address, true);
         const rootKitFloorCalculatorFactory = await ethers.getContractFactory("RootKitFloorCalculator");
         const rootKitFloorCalculator = await rootKitFloorCalculatorFactory.connect(owner).deploy(rootKit.address, uniswap.factory.address);
         await keth.connect(owner).setFloorCalculator(rootKitFloorCalculator.address);
-    })
 
-    it("setup works", async function() {
-        await rootKitDistribution.setup1();
-        await rootKitDistribution.setup2();
+        await rootKit.connect(owner).transfer(rootKitLiquidityGeneration.address, await rootKit.totalSupply());
+        await rootKitLiquidityGeneration.connect(owner).activate(rootKitDistribution.address);
+        await user1.sendTransaction({ to: rootKitLiquidityGeneration.address, value: utils.parseEther("1") });
+        await user2.sendTransaction({ to: rootKitLiquidityGeneration.address, value: utils.parseEther("2") });
+        await user3.sendTransaction({ to: rootKitLiquidityGeneration.address, value: utils.parseEther("3") });
     })
 
     it("initializes as expected", async function() {
-        expect(await rootKitDistribution.state()).to.equal(0);
-        expect(await rootKitDistribution.rootKit()).to.equal(rootKit.address);
-        expect(await rootKitDistribution.contributorsCount()).to.equal(0);
+        expect(await rootKitDistribution.totalEthCollected()).to.equal(0);
+        expect(await rootKitDistribution.totalRootKitBought()).to.equal(0);
+        expect(await rootKitDistribution.totalWbtcRootKit()).to.equal(0);
+        expect(await rootKitDistribution.totalKethRootKit()).to.equal(0);
+        expect(await rootKitDistribution.jengaCount()).to.equal(0);
+        expect(await rootKitDistribution.vaultPercent()).to.equal(2500);
+        expect(await rootKitDistribution.buyPercent()).to.equal(2500);
+        expect(await rootKitDistribution.wbtcPercent()).to.equal(2500);
     })
 
-    it("ownerOnly functions fail with non-owner", async function() {
-        await expect(rootKitDistribution.connect(user1).activate()).to.be.revertedWith("Owner only");
-        await expect(rootKitDistribution.connect(user1).allowRefunds()).to.be.revertedWith("Owner only");
-        await expect(rootKitDistribution.connect(user1).complete(1)).to.be.revertedWith("Owner only");
-        await expect(rootKitDistribution.connect(user1).distribute()).to.be.revertedWith("Owner only");
-        await expect(rootKitDistribution.connect(user1).setup3(owner.address, owner.address)).to.be.revertedWith("Owner only");
+    it("owner-only functions can't be called by non-owner", async function() {
+        await expect(rootKitDistribution.connect(user1).completeSetup(user1.address, user2.address)).to.be.revertedWith("Owner only");
+        await expect(rootKitDistribution.connect(user1).setJengaCount(1)).to.be.revertedWith("Owner only");
     })
 
-    it("eth rejected when inactive", async function() {
-        await expect(owner.sendTransaction({ to: rootKitDistribution.address, value: 1 })).to.be.revertedWith("Distribution not active");
-    })
-
-    it("claimRefund fails", async function() {
-        await expect(rootKitDistribution.claimRefund()).to.be.revertedWith("Everything's fine");
-    })
-
-    it("complete fails", async function() {
-        await expect(rootKitDistribution.complete(1)).to.be.revertedWith("Not active");
-    })
-
-    it("activate fails when inactive", async function() {
-        await expect(rootKitDistribution.connect(owner).activate()).to.revertedWith();
-    })
-    
-    describe("setup() and activate()", function() {
+    describe("setupKethRootKit() and setupWbtcRootKit() called", function() {
+        let kethRootKit, wbtcRootKit;
         let wrappedKethRootKit, wrappedWbtcRootKit;
+
         beforeEach(async function() {
-            await rootKitDistribution.setup1();
-            await rootKitDistribution.setup2();
+            await rootKitDistribution.connect(owner).setupKethRootKit();
+            await rootKitDistribution.connect(owner).setupWbtcRootKit();
+
+            kethRootKit = uniswap.pairFor(await uniswap.factory.getPair(keth.address, rootKit.address));
+            wbtcRootKit = uniswap.pairFor(await uniswap.factory.getPair(uniswap.wbtc.address, rootKit.address));
             const rootKitLiquidityFactory = await ethers.getContractFactory("RootKitLiquidity");
-            const kethRootKitAddr = await uniswap.factory.getPair(keth.address, rootKit.address);
-            const wbtcRootKitAddr = await uniswap.factory.getPair(uniswap.wbtc.address, rootKit.address);
-            wrappedKethRootKit = await rootKitLiquidityFactory.connect(owner).deploy(kethRootKitAddr);
-            wrappedWbtcRootKit = await rootKitLiquidityFactory.connect(owner).deploy(wbtcRootKitAddr);
-            await rootKitDistribution.setup3(wrappedKethRootKit.address, wrappedWbtcRootKit.address);
-            await rootKitDistribution.connect(owner).activate();
+            wrappedKethRootKit = await rootKitLiquidityFactory.connect(owner).deploy(kethRootKit.address);
+            wrappedWbtcRootKit = await rootKitLiquidityFactory.connect(owner).deploy(wbtcRootKit.address);
         })
 
-        it("sets state", async function() {
-            expect(await rootKitDistribution.state()).to.equal(2);
+        it("completeSetup() with mismatched pairs don't work", async function() {
+            await expect(rootKitDistribution.connect(owner).completeSetup(wrappedWbtcRootKit.address, wrappedKethRootKit.address)).to.be.revertedWith("Wrong LP Wrapper");
         })
 
-        describe("user1, user2, user3 send 1, 2, and 3 eth", function() {
+        describe("completeSetup() called", function() {
             beforeEach(async function() {
-                await user1.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("1") });
-                await user2.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("1") });
-                await user3.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("3") });
-                await user2.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("1") });
-            })
-                        
-            it("claimRefund fails", async function() {
-                await expect(rootKitDistribution.claimRefund()).to.be.revertedWith("Everything's fine");
-            })
-        
-            it("claim fails", async function() {
-                await expect(rootKitDistribution.claim()).to.be.revertedWith("Distribution not complete");
+                await rootKitDistribution.connect(owner).completeSetup(wrappedKethRootKit.address, wrappedWbtcRootKit.address);
             })
 
-            it("contributorsCount() == 3", async function() {
-                expect(await rootKitDistribution.contributorsCount()).to.equal(3);
-                expect(await rootKitDistribution.contribution(owner.address)).to.equal(0);
-                expect(await rootKitDistribution.contribution(user1.address)).to.equal(utils.parseEther("1"));
-                expect(await rootKitDistribution.contribution(user2.address)).to.equal(utils.parseEther("2"));
-                expect(await rootKitDistribution.contribution(user3.address)).to.equal(utils.parseEther("3"));
-                expect(await rootKitDistribution.contributors(0)).to.equal(user1.address);
-                expect(await rootKitDistribution.contributors(1)).to.equal(user2.address);
-                expect(await rootKitDistribution.contributors(2)).to.equal(user3.address);
-            })
-
-            describe("allowRefunds()", function() {
+            describe("complete() called", function() {
                 beforeEach(async function() {
-                    await rootKitDistribution.connect(owner).allowRefunds();
+                    await rootKitLiquidityGeneration.connect(owner).complete();
                 })
 
-                it("state == broken", async function() {
-                    expect(await rootKitDistribution.state()).to.equal(3);
+                it("initialized as expected", async function() {                    
+                    expect(await rootKitDistribution.totalEthCollected()).to.equal(utils.parseEther("6"));
+                    expect(await rootKitDistribution.totalRootKitBought()).not.to.equal(0);
+                    expect(await rootKitDistribution.totalWbtcRootKit()).not.to.equal(0);
+                    expect(await rootKitDistribution.totalKethRootKit()).not.to.equal(0);
                 })
 
-                it("claimRefund works as expected", async function() {
-                    await rootKitDistribution.connect(user1).claimRefund();
-                    await rootKitDistribution.connect(user2).claimRefund();
-                    await rootKitDistribution.connect(user3).claimRefund();
-                    await expect(rootKitDistribution.connect(user2).claimRefund()).to.be.revertedWith("Already claimed");
-                })
-
-                it("eth rejected when inactive", async function() {
-                    await expect(owner.sendTransaction({ to: rootKitDistribution.address, value: 1 })).to.be.revertedWith("Distribution not active");
-                })
-            })
-
-            describe("complete(1)", function() {
-                let kethRootKit;
-
-                beforeEach(async function() {                    
-                    await rootKitDistribution.connect(owner).complete(1);
-                    kethRootKit = uniswap.pairFor(await uniswap.factory.getPair(rootKit.address, keth.address));
-                })
-
-                it("state == Completing", async function() {
-                    expect(await rootKitDistribution.state()).to.equal(4);
-                })
-
-                it("balance = 0", async function() {
+                it("distributed as expected", async function() {         
+                    const target = BigNumber.from(utils.parseEther("1.5"));
+                    expect(BigNumber.from(await weth.balanceOf(owner.address)).gt(target)).to.equal(true);
+                    expect(BigNumber.from(await weth.balanceOf(rootKitVault.address)).eq(target)).to.equal(true);
                     expect(await ethers.provider.getBalance(rootKitDistribution.address)).to.equal(0);
                 })
+            })
+        })
 
-                it("vault balance correct", async function() {
-                    expect(await weth.balanceOf(vault.address)).to.equal(utils.parseEther("0.6"));
+        describe("setJengaCount(1) then completeSetup() called", function() {
+            beforeEach(async function() {
+                await rootKitDistribution.connect(owner).setJengaCount(1);
+                await rootKitDistribution.connect(owner).completeSetup(wrappedKethRootKit.address, wrappedWbtcRootKit.address);
+            })
+
+            describe("distribute() called", function() {
+                beforeEach(async function() {
+                    await rootKitLiquidityGeneration.connect(owner).complete();
+                })
+
+                it("initialized as expected", async function() {                    
+                    expect(await rootKitDistribution.totalEthCollected()).to.equal(utils.parseEther("6"));
+                    expect(await rootKitDistribution.totalRootKitBought()).not.to.equal(0);
+                    expect(await rootKitDistribution.totalWbtcRootKit()).not.to.equal(0);
+                    expect(await rootKitDistribution.totalKethRootKit()).not.to.equal(0);
+                })
+
+                it("distributed as expected", async function() {
+                    const target = BigNumber.from(utils.parseEther("1.5"));
+                    expect(BigNumber.from(await weth.balanceOf(owner.address)).gt(target)).to.equal(true);
+                    expect(BigNumber.from(await weth.balanceOf(rootKitVault.address)).eq(target)).to.equal(true);
+                    expect(await ethers.provider.getBalance(rootKitDistribution.address)).to.equal(0);
                 })
             })
         })
-        describe("user1, user2, user3 send 1000, 2000, and 3000 eth, complete(10)", function() {
-            let kethRootKit;
-            beforeEach(async function() {
-                await user1.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("1000") });
-                await user2.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("2000") });
-                await user3.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("3000") });
-                await rootKitDistribution.connect(owner).complete(10);
-                kethRootKit = uniswap.pairFor(await uniswap.factory.getPair(rootKit.address, keth.address));
-            })
-        })
-        describe("user1, user2, user3 send 1000, 2000, and 3000 eth, complete(20)", function() {
-            let kethRootKit;
-            beforeEach(async function() {
-                await user1.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("1000") });
-                await user2.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("2000") });
-                await user3.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("3000") });
-                await rootKitDistribution.connect(owner).complete(20);
-                kethRootKit = uniswap.pairFor(await uniswap.factory.getPair(rootKit.address, keth.address));
-            })
-        })
-        describe("user1, user2, user3 send 70000, 70000, and 70000 eth, complete(10)", function() {
-            let kethRootKit;
-            beforeEach(async function() {
-                await user1.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("70000") });
-                await user2.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("70000") });
-                await user3.sendTransaction({ to: rootKitDistribution.address, value: utils.parseEther("70000") });
-                await rootKitDistribution.connect(owner).complete(10);
-                kethRootKit = uniswap.pairFor(await uniswap.factory.getPair(rootKit.address, keth.address));
-            })
-        })
     })
-});
+})

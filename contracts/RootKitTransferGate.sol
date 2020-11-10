@@ -33,13 +33,13 @@ import "./TokensRecoverable.sol";
 struct RootKitTransferGateParameters
 {
     address dev;
-    uint16 vaultRate; // 10000 = 100%
+    uint16 stakeRate; // 10000 = 100%
     uint16 burnRate; // 10000 = 100%
     uint16 devRate;  // 10000 = 100%
-    address vault;
+    address stake;
 }
 
-contract RootKitTransferGate is Owned, TokensRecoverable
+contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
 {   
     using Address for address;
     using SafeERC20 for IERC20;
@@ -58,15 +58,15 @@ contract RootKitTransferGate is Owned, TokensRecoverable
         AllowedPool
     }
 
-    mapping (address => AddressState) addressStates;
+    mapping (address => AddressState) public addressStates;
     IERC20[] public allowedPoolTokens;
     
     bool public unrestricted;
     mapping (address => bool) public unrestrictedControllers;
     mapping (address => bool) public freeParticipant;
 
-    mapping (address => uint256) liquiditySupply;
-    address mustUpdate;    
+    mapping (address => uint256) public liquiditySupply;
+    address public mustUpdate;    
 
     constructor(RootKit _rootKit, IUniswapV2Router02 _uniswapV2Router)
     {
@@ -87,22 +87,23 @@ contract RootKitTransferGate is Owned, TokensRecoverable
         freeParticipant[participant] = free;
     }
 
-    function setUnrestricted(bool _unrestricted) public {
-        require (unrestrictedControllers[msg.sender]);
+    function setUnrestricted(bool _unrestricted) public
+    {
+        require (unrestrictedControllers[msg.sender], "Not an unrestricted controller");
         unrestricted = _unrestricted;
     }
 
-    function setParameters(address _dev, address _vault, uint16 _vaultRate, uint16 _burnRate, uint16 _devRate) public ownerOnly()
+    function setParameters(address _dev, address _stake, uint16 _stakeRate, uint16 _burnRate, uint16 _devRate) public ownerOnly()
     {
-        require (_vaultRate <= 10000 && _burnRate <= 10000 && _devRate <= 10000 && _vaultRate + _burnRate + _devRate <= 10000, "> 100%");
-        require (_dev != address(0) && _vault != address(0));
+        require (_stakeRate <= 10000 && _burnRate <= 10000 && _devRate <= 10000 && _stakeRate + _burnRate + _devRate <= 10000, "> 100%");
+        require (_dev != address(0) && _stake != address(0));
         
         RootKitTransferGateParameters memory _parameters;
         _parameters.dev = _dev;
-        _parameters.vaultRate = _vaultRate;
+        _parameters.stakeRate = _stakeRate;
         _parameters.burnRate = _burnRate;
         _parameters.devRate = _devRate;
-        _parameters.vault = _vault;
+        _parameters.stake = _stake;
         parameters = _parameters;
     }
 
@@ -147,7 +148,7 @@ contract RootKitTransferGate is Owned, TokensRecoverable
         unrestricted = false;
     }
 
-    function handleTransfer(address, address from, address to, uint256 amount) external
+    function handleTransfer(address, address from, address to, uint256 amount) external override
         returns (uint256 burn, TransferGateTarget[] memory targets)
     {
         address mustUpdateAddress = mustUpdate;
@@ -177,11 +178,11 @@ contract RootKitTransferGate is Owned, TokensRecoverable
         RootKitTransferGateParameters memory params = parameters;
         // "amount" will never be > totalSupply which is capped at 10k, so these multiplications will never overflow
         burn = amount * params.burnRate / 10000;
-        targets = new TransferGateTarget[]((params.devRate > 0 ? 1 : 0) + (params.vaultRate > 0 ? 1 : 0));
+        targets = new TransferGateTarget[]((params.devRate > 0 ? 1 : 0) + (params.stakeRate > 0 ? 1 : 0));
         uint256 index = 0;
-        if (params.vaultRate > 0) {
-            targets[index].destination = params.vault;
-            targets[index++].amount = amount * params.vaultRate / 10000;
+        if (params.stakeRate > 0) {
+            targets[index].destination = params.stake;
+            targets[index++].amount = amount * params.stakeRate / 10000;
         }
         if (params.devRate > 0) {
             targets[index].destination = params.dev;

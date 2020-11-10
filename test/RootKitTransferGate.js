@@ -25,8 +25,8 @@ describe("RootKitTransferGate", function() {
     it("initialized as expected", async function() {
         const p = await rootKitTransferGate.parameters();
         expect(p.dev).to.equal(constants.AddressZero);
-        expect(p.vault).to.equal(constants.AddressZero);
-        expect(p.vaultRate).to.equal(0);
+        expect(p.stake).to.equal(constants.AddressZero);
+        expect(p.stakeRate).to.equal(0);
         expect(p.burnRate).to.equal(0);
         expect(p.devRate).to.equal(0);
         expect(await rootKitTransferGate.allowedPoolTokensCount()).to.equal(0);
@@ -90,7 +90,7 @@ describe("RootKitTransferGate", function() {
         it("sets parameters as expected", async function() {
             const p = await rootKitTransferGate.parameters();
             expect(p.dev).to.equal(dev.address);
-            expect(p.vaultRate).to.equal(100);
+            expect(p.stakeRate).to.equal(100);
             expect(p.burnRate).to.equal(200);
             expect(p.devRate).to.equal(400);            
         })

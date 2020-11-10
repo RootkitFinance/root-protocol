@@ -16,7 +16,7 @@ contract DevSplitter
     mapping (IERC20 => mapping(address => uint256)) public totalPaidToPayee;
     
     mapping (address => uint256) public share;
-    uint256 immutable totalShares;
+    uint256 immutable public totalShares;
 
     constructor(address[] memory payees, uint256[] memory shares)
     {
