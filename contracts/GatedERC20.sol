@@ -12,18 +12,19 @@ import "./ITransferGate.sol";
 import "./Owned.sol";
 import "./SafeMath.sol";
 import "./TokensRecoverable.sol";
+import "./IGatedERC20.sol";
 
-abstract contract GatedERC20 is ERC20, Owned, TokensRecoverable
+abstract contract GatedERC20 is ERC20, Owned, TokensRecoverable, IGatedERC20
 {
     using SafeMath for uint256;
 
-    ITransferGate public transferGate;
+    ITransferGate public override transferGate;
 
     constructor(string memory _name, string memory _symbol) ERC20(_name, _symbol)
     {
     }
 
-    function setTransferGate(ITransferGate _transferGate) public ownerOnly()
+    function setTransferGate(ITransferGate _transferGate) public override ownerOnly()
     {
         transferGate = _transferGate;
     }

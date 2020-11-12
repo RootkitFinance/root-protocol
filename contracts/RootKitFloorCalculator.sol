@@ -6,7 +6,6 @@ A floor calculator (to use with ERC31337) for RootKit uniswap pairs
 Ensures 100% of accessible funds are backed at all times
 */
 
-import "hardhat/console.sol";
 import "./IFloorCalculator.sol";
 import "./RootKit.sol";
 import "./SafeMath.sol";

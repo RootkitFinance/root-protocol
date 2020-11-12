@@ -109,6 +109,25 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "a",
+        "type": "address"
+      }
+    ],
+    "name": "detectState",
+    "outputs": [
+      {
+        "internalType": "enum RootKitTransferGate.AddressState",
+        "name": "state",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -322,6 +341,24 @@
         "type": "uint256"
       }
     ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "a",
+        "type": "address"
+      },
+      {
+        "internalType": "enum RootKitTransferGate.AddressState",
+        "name": "state",
+        "type": "uint8"
+      }
+    ],
+    "name": "setAddressState",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },

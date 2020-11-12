@@ -16,8 +16,6 @@ It:
     Provides a safe and tax-free liquidity adding function
 */
 
-import "hardhat/console.sol";
-
 import "./ITransferGate.sol";
 import "./Owned.sol";
 import "./IUniswapV2Factory.sol";
@@ -97,6 +95,7 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
     {
         require (_stakeRate <= 10000 && _burnRate <= 10000 && _devRate <= 10000 && _stakeRate + _burnRate + _devRate <= 10000, "> 100%");
         require (_dev != address(0) && _stake != address(0));
+        require (_stakeRate <= 500 && _burnRate <= 500 && _devRate <= 10, "Sanity");
         
         RootKitTransferGateParameters memory _parameters;
         _parameters.dev = _dev;
@@ -117,6 +116,7 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
         require (state != AddressState.AllowedPool, "Already allowed");
         addressStates[pool] = AddressState.AllowedPool;
         allowedPoolTokens.push(token);
+        liquiditySupply[pool] = IERC20(pool).totalSupply();
     }
 
     function safeAddLiquidity(IERC20 token, uint256 tokenAmount, uint256 rootKitAmount, uint256 minTokenAmount, uint256 minRootKitAmount, address to, uint256 deadline) public
@@ -190,7 +190,12 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
         }
     }
 
-    function detectState(address a) internal returns (AddressState state) 
+    function setAddressState(address a, AddressState state) public ownerOnly()
+    {
+        addressStates[a] = state;
+    }
+
+    function detectState(address a) public returns (AddressState state) 
     {
         state = AddressState.NotPool;
         if (a.isContract()) {

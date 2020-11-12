@@ -12,8 +12,8 @@ import "./IERC20.sol";
 
 contract RootKitLiquidity is ERC31337
 {
-    constructor(IUniswapV2Pair _pair)
-        ERC31337(IERC20(address(_pair)))
+    constructor(IUniswapV2Pair _pair, string memory _name, string memory _symbol)
+        ERC31337(IERC20(address(_pair)), _name, _symbol)
     {
     }
 
