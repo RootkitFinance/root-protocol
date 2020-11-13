@@ -38,7 +38,7 @@ contract RootKitDistribution is Owned, TokensRecoverable, IRootKitDistribution
 {
     using SafeMath for uint256;
 
-    bool public distributionComplete;
+    bool public override distributionComplete;
 
     IUniswapV2Router02 immutable uniswapV2Router;
     IUniswapV2Factory immutable uniswapV2Factory;

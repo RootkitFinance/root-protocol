@@ -8,6 +8,7 @@ contract RootKitDistributionTest is IRootKitDistribution
 {
     RootKit immutable rootKit;
     mapping (address => uint256) public claimCallAmount;
+    bool public override distributionComplete;
 
     constructor(RootKit _rootKit)
     {
@@ -16,11 +17,14 @@ contract RootKitDistributionTest is IRootKitDistribution
 
     function distribute() public override payable 
     { 
+        require (!distributionComplete, "Already complete");
         rootKit.transferFrom(msg.sender, address(this), rootKit.totalSupply());
+        distributionComplete = true;
     }
 
     function claim(address _to, uint256 _amount) public override
     {
+        require (distributionComplete, "Not complete");
         claimCallAmount[_to] = _amount;
     }
 }

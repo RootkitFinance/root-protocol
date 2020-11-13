@@ -129,5 +129,31 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "rootKitDistribution",
+    "outputs": [
+      {
+        "internalType": "contract IRootKitDistribution",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IRootKitDistribution",
+        "name": "_rootKitDistribution",
+        "type": "address"
+      }
+    ],
+    "name": "watchDistribution",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
   }
 ]

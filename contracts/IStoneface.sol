@@ -3,6 +3,7 @@ pragma solidity ^0.7.4;
 pragma experimental ABIEncoderV2;
 
 import "./IOwned.sol";
+import "./IRootKitDistribution.sol";
 
 interface IStoneface
 {
@@ -21,4 +22,6 @@ interface IStoneface
     function callTransferOwnership(IOwned target, address newOwner) external;
     function callTransferOwnershipNow(uint256 index) external;
     function callClaimOwnership(IOwned target) external;
+    function rootKitDistribution() external view returns (IRootKitDistribution);
+    function watchDistribution(IRootKitDistribution _rootKitDistribution) external;
 }
