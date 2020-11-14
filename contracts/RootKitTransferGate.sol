@@ -16,7 +16,6 @@ It:
     Provides a safe and tax-free liquidity adding function
 */
 
-import "./ITransferGate.sol";
 import "./Owned.sol";
 import "./IUniswapV2Factory.sol";
 import "./IERC20.sol";
@@ -27,6 +26,7 @@ import "./IUniswapV2Router02.sol";
 import "./SafeERC20.sol";
 import "./SafeMath.sol";
 import "./TokensRecoverable.sol";
+import "./ITransferGate.sol";
 
 struct RootKitTransferGateParameters
 {
@@ -43,11 +43,6 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    RootKitTransferGateParameters public parameters;
-    IUniswapV2Router02 immutable uniswapV2Router;
-    IUniswapV2Factory immutable uniswapV2Factory;
-    RootKit immutable rootKit;
-
     enum AddressState
     {
         Unknown,
@@ -55,6 +50,11 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
         DisallowedPool,
         AllowedPool
     }
+
+    RootKitTransferGateParameters public parameters;
+    IUniswapV2Router02 immutable uniswapV2Router;
+    IUniswapV2Factory immutable uniswapV2Factory;
+    RootKit immutable rootKit;
 
     mapping (address => AddressState) public addressStates;
     IERC20[] public allowedPoolTokens;
