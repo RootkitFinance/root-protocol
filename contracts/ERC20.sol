@@ -148,7 +148,7 @@ abstract contract ERC20 is IERC20
     /**
      * @dev Moves tokens `amount` from `sender` to `recipient`.
      *
-     * This is internal function is equivalent to {transfer}, and can be used to
+     * This internal function is equivalent to {transfer}, and can be used to
      * e.g. implement automatic token fees, slashing mechanisms, etc.
      *
      * Emits a {Transfer} event.
