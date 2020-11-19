@@ -64,8 +64,8 @@ describe("RootKitDistribution", function() {
             kethRootKit = uniswap.pairFor(await uniswap.factory.getPair(keth.address, rootKit.address));
             wbtcRootKit = uniswap.pairFor(await uniswap.factory.getPair(uniswap.wbtc.address, rootKit.address));
             const rootKitLiquidityFactory = await ethers.getContractFactory("RootKitLiquidity");
-            wrappedKethRootKit = await rootKitLiquidityFactory.connect(owner).deploy(kethRootKit.address);
-            wrappedWbtcRootKit = await rootKitLiquidityFactory.connect(owner).deploy(wbtcRootKit.address);
+            wrappedKethRootKit = await rootKitLiquidityFactory.connect(owner).deploy(kethRootKit.address, "wrappedKethRootKit", "KETHROOT");
+            wrappedWbtcRootKit = await rootKitLiquidityFactory.connect(owner).deploy(wbtcRootKit.address, "wrappedWbtcRootKit", "WBTCROOT");
         })
 
         it("completeSetup() with mismatched pairs don't work", async function() {

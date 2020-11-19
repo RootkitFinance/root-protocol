@@ -82,9 +82,9 @@ describe("RootKitTransferGate", function() {
         expect(await rootKitTransferGate.unrestricted()).to.equal(false);
     });
 
-    describe("setParameters(dev, pool 1%, burn 2%, dev 4%)", function() {
+    describe("setParameters(dev, pool 1%, burn 2%, dev 0.1%)", function() {
         beforeEach(async function() {
-            await rootKitTransferGate.connect(owner).setParameters(dev.address, rootKitTransferGate.address, 100, 200, 400);
+            await rootKitTransferGate.connect(owner).setParameters(dev.address, rootKitTransferGate.address, 100, 200, 10);
         })
 
         it("sets parameters as expected", async function() {
@@ -92,16 +92,16 @@ describe("RootKitTransferGate", function() {
             expect(p.dev).to.equal(dev.address);
             expect(p.stakeRate).to.equal(100);
             expect(p.burnRate).to.equal(200);
-            expect(p.devRate).to.equal(400);            
+            expect(p.devRate).to.equal(10);            
         })
 
         it("transfer works as expected", async function() {
             await rootKit.connect(owner).transfer(user1.address, utils.parseEther("100"));
             expect(await rootKit.totalSupply()).to.equal(utils.parseEther("9998"));
             expect(await rootKit.balanceOf(owner.address)).to.equal(utils.parseEther("9900"));
-            expect(await rootKit.balanceOf(user1.address)).to.equal(utils.parseEther("93"));
+            expect(await rootKit.balanceOf(user1.address)).to.equal(utils.parseEther("96.9"));
             expect(await rootKit.balanceOf(rootKitTransferGate.address)).to.equal(utils.parseEther("1"));
-            expect(await rootKit.balanceOf(dev.address)).to.equal(utils.parseEther("4"));
+            expect(await rootKit.balanceOf(dev.address)).to.equal(utils.parseEther("0.1"));
         });
 
         describe("setFreeParticipant(owner)", function() {

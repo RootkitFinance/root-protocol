@@ -6,7 +6,7 @@ const { expect } = require("chai");
 describe("Simulations", function() {
     let owner, user1, user2, user3, user4, user5;
     let erc20Factory, erc31337Factory, kethFactory;
-    let rootKitFactory, rootKitDistributionFactory, rootKitFloorCalculatorFactory, rootKitTransferGateFactory, rootKitLiquidityFactory, rootKitLiquidityGenerationFactory, rootKitVaultFactory;
+    let rootKitFactory, rootKitDistributionFactory, rootKitFloorCalculatorFactory, rootKitTransferGateFactory, rootKitLiquidityFactory, rootKitLiquidityGenerationFactory, rootKitVaultFactory, stonefaceFactory;
     let weth, uniswap;
     
     beforeEach(async function() {
@@ -21,6 +21,7 @@ describe("Simulations", function() {
         rootKitLiquidityFactory = await ethers.getContractFactory("RootKitLiquidity");
         rootKitLiquidityGenerationFactory = await ethers.getContractFactory("RootKitLiquidityGeneration");
         rootKitVaultFactory = await ethers.getContractFactory("RootKitVault");
+        stonefaceFactory = await ethers.getContractFactory("Stoneface");
         weth = await createWETH();
         uniswap = await createUniswap(owner, weth);
     })
@@ -40,15 +41,21 @@ describe("Simulations", function() {
         const rootKitDistribution = await rootKitDistributionFactory.connect(owner).deploy(rootKit.address, uniswap.router.address, keth.address, uniswap.wbtc.address, rootKitVault.address);
         const rootKitLiquidityGeneration = await rootKitLiquidityGenerationFactory.connect(owner).deploy(rootKit.address);
 
+        // deploy 2 stoneface sentinels, one for 7 days, one for 3
+        // the 7 day one watches the distribution
+        const stoneface7 = await stonefaceFactory.connect(owner).deploy(60 * 60 * 24 * 7);
+        const stoneface3 = await stonefaceFactory.connect(owner).deploy(60 * 60 * 24 * 3);
+        await stoneface7.connect(owner).watchDistribution(rootKitDistribution.address);
+
         // Start rootKitDistribution setup
         await rootKitDistribution.connect(owner).setupKethRootKit();
         await rootKitDistribution.connect(owner).setupWbtcRootKit();
 
         // Create wrapped liquidity tokens for KETH/ROOT and WBTC/ROOT
         const kethRootKit = uniswap.pairFor(await uniswap.factory.getPair(keth.address, rootKit.address));
-        const wrappedKethRootKit = await rootKitLiquidityFactory.connect(owner).deploy(kethRootKit.address);
+        const wrappedKethRootKit = await rootKitLiquidityFactory.connect(owner).deploy(kethRootKit.address, "wrappedKethRootKit", "KETHROOT");
         const wbtcRootKit = uniswap.pairFor(await uniswap.factory.getPair(uniswap.wbtc.address, rootKit.address));
-        const wrappedWbtcRootKit = await rootKitLiquidityFactory.connect(owner).deploy(wbtcRootKit.address);
+        const wrappedWbtcRootKit = await rootKitLiquidityFactory.connect(owner).deploy(wbtcRootKit.address, "wrappedWbtcRootKit", "WBTCROOT");
 
         // Finish rootKitDistribution setup
         await rootKitDistribution.connect(owner).completeSetup(wrappedKethRootKit.address, wrappedWbtcRootKit.address);
@@ -73,10 +80,16 @@ describe("Simulations", function() {
 
         await rootKitLiquidityGeneration.connect(owner).activate(rootKitDistribution.address);
 
-        // People send 150 in total ETH
+        // People send 150 in total ETH, and we transfer ownership to stoneface part way through
         await user1.sendTransaction({ to: rootKitLiquidityGeneration.address, value: utils.parseEther("10") });
         await user2.sendTransaction({ to: rootKitLiquidityGeneration.address, value: utils.parseEther("20") });
+        await keth.connect(owner).transferOwnership(stoneface7.address);
+        await rootKit.connect(owner).transferOwnership(stoneface7.address);
+        await rootKitVault.connect(owner).transferOwnership(stoneface3.address);
         await user3.sendTransaction({ to: rootKitLiquidityGeneration.address, value: utils.parseEther("30") });
+        await stoneface7.connect(owner).callClaimOwnership(keth.address);
+        await stoneface7.connect(owner).callClaimOwnership(rootKit.address);
+        await stoneface3.connect(owner).callClaimOwnership(rootKitVault.address);
         await user4.sendTransaction({ to: rootKitLiquidityGeneration.address, value: utils.parseEther("40") });
         await user5.sendTransaction({ to: rootKitLiquidityGeneration.address, value: utils.parseEther("50") });
 
@@ -169,8 +182,8 @@ describe("Simulations", function() {
         // Set up the transfer gate parameters
         // 1% to vault
         // 2% to burn
-        // 3% to dev
-        await rootKitTransferGate.connect(owner).setParameters(owner.address, rootKitVault.address, 100, 200, 300);
+        // 0.1% to dev
+        await rootKitTransferGate.connect(owner).setParameters(owner.address, rootKitVault.address, 100, 200, 10);
 
         // User4 sends 100 ROOT to User2
         let user4RootKitBalance = await rootKit.balanceOf(user4.address);
@@ -192,5 +205,17 @@ describe("Simulations", function() {
         console.log("AFTER DEV ROOT Balance: " + utils.formatEther(await rootKit.balanceOf(owner.address)));
         console.log("AFTER VAULT ROOT Balance: " + utils.formatEther(await rootKit.balanceOf(rootKitVault.address)));
         console.log("AFTER ROOT Supply: " + utils.formatEther(await rootKit.totalSupply()));
+
+        // Make sure stoneface will give up ownership
+        await stoneface7.connect(owner).callTransferOwnership(keth.address, owner.address);
+        await stoneface7.connect(owner).callTransferOwnership(rootKit.address, owner.address);
+        await stoneface3.connect(owner).callTransferOwnership(rootKitVault.address, owner.address);
+        await ethers.provider.send("evm_increaseTime", [(await stoneface7.delay()).toNumber()]);
+        await stoneface7.connect(owner).callTransferOwnershipNow(0);
+        await stoneface7.connect(owner).callTransferOwnershipNow(0);
+        await stoneface3.connect(owner).callTransferOwnershipNow(0);
+        await keth.connect(owner).claimOwnership();
+        await rootKit.connect(owner).claimOwnership();
+        await rootKitVault.connect(owner).claimOwnership();
     })
 });

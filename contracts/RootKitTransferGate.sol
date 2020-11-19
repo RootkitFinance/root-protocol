@@ -124,6 +124,7 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
     {
         address pool = uniswapV2Factory.getPair(address(rootKit), address(token));
         require (pool != address(0) && addressStates[pool] == AddressState.AllowedPool, "Pool not approved");
+        require (!unrestricted);
         unrestricted = true;
 
         uint256 tokenBalance = token.balanceOf(address(this));
