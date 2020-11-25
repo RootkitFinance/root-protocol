@@ -6,7 +6,7 @@ import "./RootKit.sol";
 import "./IRootKitDistribution.sol";
 import "./TokensRecoverable.sol";
 
-contract RootKitLiquidityGeneration is Owned, TokensRecoverable
+contract RootKitLiquidityGeneration is TokensRecoverable
 {
     mapping (address => uint256) public contribution;
     address[] public contributors;

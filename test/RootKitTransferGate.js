@@ -82,9 +82,9 @@ describe("RootKitTransferGate", function() {
         expect(await rootKitTransferGate.unrestricted()).to.equal(false);
     });
 
-    describe("setParameters(dev, pool 1%, burn 2%, dev 4%)", function() {
+    describe("setParameters(dev, pool 1%, burn 2%, dev 0.1%)", function() {
         beforeEach(async function() {
-            await rootKitTransferGate.connect(owner).setParameters(dev.address, rootKitTransferGate.address, 100, 200, 400);
+            await rootKitTransferGate.connect(owner).setParameters(dev.address, rootKitTransferGate.address, 100, 200, 10);
         })
 
         it("sets parameters as expected", async function() {
@@ -92,16 +92,16 @@ describe("RootKitTransferGate", function() {
             expect(p.dev).to.equal(dev.address);
             expect(p.stakeRate).to.equal(100);
             expect(p.burnRate).to.equal(200);
-            expect(p.devRate).to.equal(400);            
+            expect(p.devRate).to.equal(10);            
         })
 
         it("transfer works as expected", async function() {
             await rootKit.connect(owner).transfer(user1.address, utils.parseEther("100"));
             expect(await rootKit.totalSupply()).to.equal(utils.parseEther("9998"));
             expect(await rootKit.balanceOf(owner.address)).to.equal(utils.parseEther("9900"));
-            expect(await rootKit.balanceOf(user1.address)).to.equal(utils.parseEther("93"));
+            expect(await rootKit.balanceOf(user1.address)).to.equal(utils.parseEther("96.9"));
             expect(await rootKit.balanceOf(rootKitTransferGate.address)).to.equal(utils.parseEther("1"));
-            expect(await rootKit.balanceOf(dev.address)).to.equal(utils.parseEther("4"));
+            expect(await rootKit.balanceOf(dev.address)).to.equal(utils.parseEther("0.1"));
         });
 
         describe("setFreeParticipant(owner)", function() {
@@ -136,16 +136,27 @@ describe("RootKitTransferGate", function() {
             })
         
             it("add/remove keth/rootKit Liquidity works as expected", async function() {
-                await rootKit.connect(owner).approve(uniswap.router.address, utils.parseEther("0.0001"));
-                await keth.connect(owner).approve(uniswap.router.address, utils.parseEther("0.0001"));
-                await keth.connect(owner).deposit({ value: utils.parseEther("0.0001") });
-                await uniswap.router.connect(owner).addLiquidity(keth.address, rootKit.address, utils.parseEther("0.0001"), utils.parseEther("0.0001"), 0, 0, owner.address, 2e9);                
+                await kethRootKit.connect(owner).approve(uniswap.router.address, constants.MaxUint256);
+                await rootKit.connect(owner).approve(uniswap.router.address, constants.MaxUint256);
+                await keth.connect(owner).approve(uniswap.router.address, constants.MaxUint256);
+
+                const amt = utils.parseEther("0.01");
+                const liqamt = utils.parseEther("10")
+                await keth.connect(owner).deposit({ value: liqamt });
+                await uniswap.router.connect(owner).addLiquidity(keth.address, rootKit.address, liqamt, liqamt, 0, 0, owner.address, 2e9);                
                 
                 // No easy way to stop a mint/burn combo with nothing in between
                 await rootKit.connect(owner).transfer(owner.address, 0);
-
-                await kethRootKit.connect(owner).approve(uniswap.router.address, constants.MaxUint256);
                 const lp = await kethRootKit.balanceOf(owner.address);
+                await expect(uniswap.router.connect(owner).removeLiquidity(keth.address, rootKit.address, lp, 0, 0, owner.address, 2e9)).to.be.revertedWith("UniswapV2: TRANSFER_FAILED");
+                
+                // should also fail after a buy
+                await keth.connect(owner).deposit({ value: amt });
+                await uniswap.router.connect(owner).swapExactTokensForTokens(amt, 0, [keth.address, rootKit.address], owner.address, 2e9);
+                await expect(uniswap.router.connect(owner).removeLiquidity(keth.address, rootKit.address, lp, 0, 0, owner.address, 2e9)).to.be.revertedWith("UniswapV2: TRANSFER_FAILED");
+
+                // should also fail after a sell
+                await uniswap.router.connect(owner).swapExactTokensForTokensSupportingFeeOnTransferTokens(amt, 0, [rootKit.address, keth.address], owner.address, 2e9);
                 await expect(uniswap.router.connect(owner).removeLiquidity(keth.address, rootKit.address, lp, 0, 0, owner.address, 2e9)).to.be.revertedWith("UniswapV2: TRANSFER_FAILED");
             });
         })

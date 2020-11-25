@@ -38,7 +38,7 @@ abstract contract ERC20 is IERC20
 {
     using SafeMath for uint256;
 
-    mapping (address => uint256) public override balanceOf;
+    mapping (address => uint256) internal _balanceOf;
     mapping (address => mapping (address => uint256)) public override allowance;
 
     uint256 public override totalSupply;
@@ -61,6 +61,8 @@ abstract contract ERC20 is IERC20
         name = _name;
         symbol = _symbol;
     }
+
+    function balanceOf(address a) public virtual override view returns (uint256) { return _balanceOf[a]; }
 
     /**
      * @dev See {IERC20-transfer}.
@@ -165,8 +167,8 @@ abstract contract ERC20 is IERC20
 
         _beforeTokenTransfer(sender, recipient, amount);
 
-        balanceOf[sender] = balanceOf[sender].sub(amount, "ERC20: transfer amount exceeds balance");
-        balanceOf[recipient] = balanceOf[recipient].add(amount);
+        _balanceOf[sender] = _balanceOf[sender].sub(amount, "ERC20: transfer amount exceeds balance");
+        _balanceOf[recipient] = _balanceOf[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
     }
 
@@ -185,7 +187,7 @@ abstract contract ERC20 is IERC20
         _beforeTokenTransfer(address(0), account, amount);
 
         totalSupply = totalSupply.add(amount);
-        balanceOf[account] = balanceOf[account].add(amount);
+        _balanceOf[account] = _balanceOf[account].add(amount);
         emit Transfer(address(0), account, amount);
     }
 
@@ -205,7 +207,7 @@ abstract contract ERC20 is IERC20
 
         _beforeTokenTransfer(account, address(0), amount);
 
-        balanceOf[account] = balanceOf[account].sub(amount, "ERC20: burn amount exceeds balance");
+        _balanceOf[account] = _balanceOf[account].sub(amount, "ERC20: burn amount exceeds balance");
         totalSupply = totalSupply.sub(amount);
         emit Transfer(account, address(0), amount);
     }

@@ -25,7 +25,7 @@ import "./TokensRecoverable.sol";
 import "./IStoneface.sol";
 import "./IRootKitDistribution.sol";
 
-contract Stoneface is Owned, TokensRecoverable, IStoneface
+contract Stoneface is TokensRecoverable, IStoneface
 {
     uint256 public immutable override delay;
 

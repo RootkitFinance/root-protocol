@@ -14,7 +14,7 @@ import "./SafeMath.sol";
 import "./TokensRecoverable.sol";
 import "./IGatedERC20.sol";
 
-abstract contract GatedERC20 is ERC20, Owned, TokensRecoverable, IGatedERC20
+abstract contract GatedERC20 is ERC20, TokensRecoverable, IGatedERC20
 {
     using SafeMath for uint256;
 
@@ -47,11 +47,11 @@ abstract contract GatedERC20 is ERC20, Owned, TokensRecoverable, IGatedERC20
             for (uint256 x = 0; x < targets.length; ++x) {
                 (address dest, uint256 amt) = (targets[x].destination, targets[x].amount);
                 remaining = remaining.sub(amt, "Transfer too much");
-                balanceOf[dest] = balanceOf[dest].add(amt);
+                _balanceOf[dest] = _balanceOf[dest].add(amt);
             }
         }
-        balanceOf[sender] = balanceOf[sender].sub(amount, "ERC20: transfer amount exceeds balance");
-        balanceOf[recipient] = balanceOf[recipient].add(remaining);
+        _balanceOf[sender] = _balanceOf[sender].sub(amount, "ERC20: transfer amount exceeds balance");
+        _balanceOf[recipient] = _balanceOf[recipient].add(remaining);
         emit Transfer(sender, recipient, amount);
     }
 }

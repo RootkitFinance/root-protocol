@@ -15,7 +15,7 @@ import "./IFloorCalculator.sol";
 import "./WrappedERC20.sol";
 import "./IERC31337.sol";
 
-contract ERC31337 is Owned, WrappedERC20, IERC31337
+contract ERC31337 is WrappedERC20, IERC31337
 {
     using SafeERC20 for IERC20;
 

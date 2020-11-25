@@ -34,7 +34,7 @@ Phases:
         Everyone can call claim() to receive their tokens (via the liquidity generation contract)
 */
 
-contract RootKitDistribution is Owned, TokensRecoverable, IRootKitDistribution
+contract RootKitDistribution is TokensRecoverable, IRootKitDistribution
 {
     using SafeMath for uint256;
 

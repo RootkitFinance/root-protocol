@@ -12,7 +12,7 @@ import "./IERC20.sol";
 import "./SafeMath.sol";
 import "./SafeERC20.sol";
 
-contract RootKitStaking is Owned, TokensRecoverable
+contract RootKitStaking is TokensRecoverable
 {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -104,8 +104,8 @@ contract RootKitStaking is Owned, TokensRecoverable
     function massUpdatePools() public 
     {
         uint256 length = poolInfo.length;
-        for (uint256 pid = 0; pid < length; ++pid) {
-            updatePool(pid);
+        for (uint256 poolId = 0; poolId < length; ++poolId) {
+            updatePool(poolId);
         }
     }
 
@@ -131,6 +131,7 @@ contract RootKitStaking is Owned, TokensRecoverable
 
     function deposit(uint256 _poolId, uint256 _amount) public 
     {
+        require (emergencyRecoveryTimestamp == 0, "Withdraw only");
         PoolInfo storage pool = poolInfo[_poolId];
         UserInfo storage user = userInfo[_poolId][msg.sender];
         updatePool(_poolId);
