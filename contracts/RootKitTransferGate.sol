@@ -37,7 +37,7 @@ struct RootKitTransferGateParameters
     address stake;
 }
 
-contract RootKitTransferGate is TokensRecoverable, ITransferGate
+contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
 {   
     using Address for address;
     using SafeERC20 for IERC20;
@@ -124,7 +124,6 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     {
         address pool = uniswapV2Factory.getPair(address(rootKit), address(token));
         require (pool != address(0) && addressStates[pool] == AddressState.AllowedPool, "Pool not approved");
-        require (!unrestricted);
         unrestricted = true;
 
         uint256 tokenBalance = token.balanceOf(address(this));
@@ -152,34 +151,26 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     function handleTransfer(address, address from, address to, uint256 amount) external override
         returns (uint256 burn, TransferGateTarget[] memory targets)
     {
-        {
-            address mustUpdateAddress = mustUpdate;
-            if (mustUpdateAddress != address(0)) {
-                mustUpdate = address(0);
-                uint256 newSupply = IERC20(mustUpdateAddress).totalSupply();
-                uint256 oldSupply = liquiditySupply[mustUpdateAddress];
-                if (newSupply != oldSupply) {
-                    liquiditySupply[mustUpdateAddress] = unrestricted ? newSupply : (newSupply > oldSupply ? newSupply : oldSupply);
-                }
-            }
+        address mustUpdateAddress = mustUpdate;
+        if (mustUpdateAddress != address(0)) {
+            mustUpdate = address(0);
+            liquiditySupply[mustUpdateAddress] = IERC20(mustUpdateAddress).totalSupply();
         }
-        {
-            AddressState fromState = addressStates[from];
-            AddressState toState = addressStates[to];
-            if (fromState != AddressState.AllowedPool && toState != AddressState.AllowedPool) {
-                if (fromState == AddressState.Unknown) { fromState = detectState(from); }
-                if (toState == AddressState.Unknown) { toState = detectState(to); }
-                require (unrestricted || (fromState != AddressState.DisallowedPool && toState != AddressState.DisallowedPool), "Pool not approved");
+        AddressState fromState = addressStates[from];
+        AddressState toState = addressStates[to];
+        if (fromState != AddressState.AllowedPool && toState != AddressState.AllowedPool) {
+            if (fromState == AddressState.Unknown) { fromState = detectState(from); }
+            if (toState == AddressState.Unknown) { toState = detectState(to); }
+            require (unrestricted || (fromState != AddressState.DisallowedPool && toState != AddressState.DisallowedPool), "Pool not approved");
+        }
+        if (toState == AddressState.AllowedPool) {
+            mustUpdate = to;
+        }
+        if (fromState == AddressState.AllowedPool) {
+            if (unrestricted) {
+                liquiditySupply[from] = IERC20(from).totalSupply();
             }
-            if (toState == AddressState.AllowedPool) {
-                mustUpdate = to;
-            }
-            if (fromState == AddressState.AllowedPool) {
-                if (unrestricted) {
-                    liquiditySupply[from] = IERC20(from).totalSupply();
-                }
-                require (IERC20(from).totalSupply() >= liquiditySupply[from], "Cannot remove liquidity");            
-            }
+            require (IERC20(from).totalSupply() >= liquiditySupply[from], "Cannot remove liquidity");            
         }
         if (unrestricted || freeParticipant[from] || freeParticipant[to]) {
             return (0, new TransferGateTarget[](0));
