@@ -7,9 +7,8 @@ A transfer gate (GatedERC20) for use with RootKit tokens
 
 It:
     Allows customization of tax and burn rates
-    Allows transfer to/from approved Uniswap pools
-    Disallows transfer to/from non-approved Uniswap pools
-    (doesn't interfere with other crappy AMMs)
+    Allows transfer to/from approved UniswapV2 pools
+    Disallows transfer to/from non-approved UniswapV2 pools
     Allows transfer to/from anywhere else
     Allows for free transfers if permission granted
     Allows for unrestricted transfers if permission granted
@@ -37,7 +36,7 @@ struct RootKitTransferGateParameters
     address stake;
 }
 
-contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
+contract RootKitTransferGate is TokensRecoverable, ITransferGate
 {   
     using Address for address;
     using SafeERC20 for IERC20;
@@ -61,14 +60,23 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
     
     bool public unrestricted;
     mapping (address => bool) public unrestrictedControllers;
+    mapping (address => bool) public feeControllers;
     mapping (address => bool) public freeParticipant;
 
     mapping (address => uint256) public liquiditySupply;
-    address public mustUpdate;    
+    address public mustUpdate; 
 
-    constructor(RootKit _rootKit, IUniswapV2Router02 _uniswapV2Router)
+    uint8 public sellStakeRateMultiplier;
+    address public taxedPool;
+
+    uint16 public dumpTaxStartRate; 
+    uint256 public dumpTaxDurationInSeconds;
+    uint256 public dumpTaxEndTimestamp;
+
+    constructor(RootKit _rootKit, address _taxedPool, IUniswapV2Router02 _uniswapV2Router)
     {
         rootKit = _rootKit;
+        taxedPool = _taxedPool;
         uniswapV2Router = _uniswapV2Router;
         uniswapV2Factory = IUniswapV2Factory(_uniswapV2Router.factory());
     }
@@ -80,9 +88,15 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
         unrestrictedControllers[unrestrictedController] = allow;
     }
 
-    function setFreeParticipant(address participant, bool free) public ownerOnly()
+    function setFreeParticipant(address participant, bool free) public
     {
+        require (feeControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
         freeParticipant[participant] = free;
+    }
+
+    function setFeeControllers(address feeController, bool allow) public ownerOnly()
+    {
+        feeControllers[feeController] = allow;
     }
 
     function setUnrestricted(bool _unrestricted) public
@@ -106,6 +120,34 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
         parameters = _parameters;
     }
 
+    function setSellStakeRateMultiplier(uint8 multiplier) public
+    {
+        require (feeControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
+        require (multiplier > 0 && multiplier <= 20 , "Must be between 1 and 20"); // protecting everyone from Ponzo
+        
+        sellStakeRateMultiplier = multiplier;
+    }
+
+    function setDumpTax(uint16 startTaxRate, uint256 durationInSeconds) public
+    {
+        require (feeControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
+        require (startTaxRate <= 1000, "Dump tax rate should be less than or equal to 10%");  // protecting everyone from Ponzo
+
+        dumpTaxStartRate = startTaxRate;
+        dumpTaxDurationInSeconds = durationInSeconds;
+        dumpTaxEndTimestamp = block.timestamp + durationInSeconds;
+    }
+
+    function getDumpTax() public view returns (uint256)
+    {
+        if (block.timestamp >= dumpTaxEndTimestamp) 
+        {
+            return 0;
+        }       
+        
+        return dumpTaxStartRate*(dumpTaxEndTimestamp - block.timestamp)*1e18/dumpTaxDurationInSeconds/1e18;
+    }
+
     function allowPool(IERC20 token) public ownerOnly()
     {
         address pool = uniswapV2Factory.getPair(address(rootKit), address(token));
@@ -124,6 +166,7 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
     {
         address pool = uniswapV2Factory.getPair(address(rootKit), address(token));
         require (pool != address(0) && addressStates[pool] == AddressState.AllowedPool, "Pool not approved");
+        require (!unrestricted);
         unrestricted = true;
 
         uint256 tokenBalance = token.balanceOf(address(this));
@@ -151,38 +194,53 @@ contract RootKitTransferGate is Owned, TokensRecoverable, ITransferGate
     function handleTransfer(address, address from, address to, uint256 amount) external override
         returns (uint256 burn, TransferGateTarget[] memory targets)
     {
-        address mustUpdateAddress = mustUpdate;
-        if (mustUpdateAddress != address(0)) {
-            mustUpdate = address(0);
-            liquiditySupply[mustUpdateAddress] = IERC20(mustUpdateAddress).totalSupply();
-        }
-        AddressState fromState = addressStates[from];
-        AddressState toState = addressStates[to];
-        if (fromState != AddressState.AllowedPool && toState != AddressState.AllowedPool) {
-            if (fromState == AddressState.Unknown) { fromState = detectState(from); }
-            if (toState == AddressState.Unknown) { toState = detectState(to); }
-            require (unrestricted || (fromState != AddressState.DisallowedPool && toState != AddressState.DisallowedPool), "Pool not approved");
-        }
-        if (toState == AddressState.AllowedPool) {
-            mustUpdate = to;
-        }
-        if (fromState == AddressState.AllowedPool) {
-            if (unrestricted) {
-                liquiditySupply[from] = IERC20(from).totalSupply();
+        {
+            address mustUpdateAddress = mustUpdate;
+            if (mustUpdateAddress != address(0)) {
+                mustUpdate = address(0);
+                uint256 newSupply = IERC20(mustUpdateAddress).totalSupply();
+                uint256 oldSupply = liquiditySupply[mustUpdateAddress];
+                if (newSupply != oldSupply) {
+                    liquiditySupply[mustUpdateAddress] = unrestricted ? newSupply : (newSupply > oldSupply ? newSupply : oldSupply);
+                }
             }
-            require (IERC20(from).totalSupply() >= liquiditySupply[from], "Cannot remove liquidity");            
+        }
+        {
+            AddressState fromState = addressStates[from];
+            AddressState toState = addressStates[to];
+            if (fromState != AddressState.AllowedPool && toState != AddressState.AllowedPool) {
+                if (fromState == AddressState.Unknown) { fromState = detectState(from); }
+                if (toState == AddressState.Unknown) { toState = detectState(to); }
+                require (unrestricted || (fromState != AddressState.DisallowedPool && toState != AddressState.DisallowedPool), "Pool not approved");
+            }
+            if (toState == AddressState.AllowedPool) {
+                mustUpdate = to;
+            }
+            if (fromState == AddressState.AllowedPool) {
+                if (unrestricted) {
+                    liquiditySupply[from] = IERC20(from).totalSupply();
+                }
+                require (IERC20(from).totalSupply() >= liquiditySupply[from], "Cannot remove liquidity");            
+            }
         }
         if (unrestricted || freeParticipant[from] || freeParticipant[to]) {
             return (0, new TransferGateTarget[](0));
         }
         RootKitTransferGateParameters memory params = parameters;
-        // "amount" will never be > totalSupply which is capped at 10k, so these multiplications will never overflow
         burn = amount * params.burnRate / 10000;
+
+        if (to == address(taxedPool))
+        {
+            burn = burn + amount * getDumpTax() / 10000;
+        }
+
         targets = new TransferGateTarget[]((params.devRate > 0 ? 1 : 0) + (params.stakeRate > 0 ? 1 : 0));
         uint256 index = 0;
         if (params.stakeRate > 0) {
             targets[index].destination = params.stake;
-            targets[index++].amount = amount * params.stakeRate / 10000;
+            targets[index++].amount = to == address(taxedPool) 
+                ? amount * params.stakeRate * sellStakeRateMultiplier / 10000  
+                : amount * params.stakeRate / 10000;
         }
         if (params.devRate > 0) {
             targets[index].destination = params.dev;
