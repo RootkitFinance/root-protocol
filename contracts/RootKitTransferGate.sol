@@ -51,8 +51,8 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     }
 
     RootKitTransferGateParameters public parameters;
-    IUniswapV2Router02 immutable uniswapV2Router;
-    IUniswapV2Factory immutable uniswapV2Factory;
+    IUniswapV2Router02 public uniswapV2Router;
+    IUniswapV2Factory public uniswapV2Factory;
     RootKit immutable rootKit;
 
     mapping (address => AddressState) public addressStates;
@@ -61,22 +61,28 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     bool public unrestricted;
     mapping (address => bool) public unrestrictedControllers;
     mapping (address => bool) public feeControllers;
+    mapping (address => bool) public freeParticipantControllers;
     mapping (address => bool) public freeParticipant;
+    mapping (address => uint16) public poolsTaxRates;
 
     mapping (address => uint256) public liquiditySupply;
     address public mustUpdate; 
 
-    uint8 public sellStakeRateMultiplier;
-    address public taxedPool;
+
 
     uint16 public dumpTaxStartRate; 
     uint256 public dumpTaxDurationInSeconds;
     uint256 public dumpTaxEndTimestamp;
 
-    constructor(RootKit _rootKit, address _taxedPool, IUniswapV2Router02 _uniswapV2Router)
+    constructor(RootKit _rootKit, IUniswapV2Router02 _uniswapV2Router)
     {
         rootKit = _rootKit;
-        taxedPool = _taxedPool;
+        uniswapV2Router = _uniswapV2Router;
+        uniswapV2Factory = IUniswapV2Factory(_uniswapV2Router.factory());
+    }
+
+    function setRouterAndFactory(IUniswapV2Router02 _uniswapV2Router) public ownerOnly()
+    {
         uniswapV2Router = _uniswapV2Router;
         uniswapV2Factory = IUniswapV2Factory(_uniswapV2Router.factory());
     }
@@ -88,17 +94,20 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
         unrestrictedControllers[unrestrictedController] = allow;
     }
 
-    function setFreeParticipant(address participant, bool free) public
+        function setFreeParticipantController(address freeParticipantController, bool allow) public ownerOnly()
     {
-        require (feeControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
-        freeParticipant[participant] = free;
+        freeParticipantControllers[freeParticipantController] = allow;
     }
 
     function setFeeControllers(address feeController, bool allow) public ownerOnly()
     {
         feeControllers[feeController] = allow;
     }
-
+        function setFreeParticipant(address participant, bool free) public
+    {
+        require (freeParticipantControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
+        freeParticipant[participant] = free;
+    }
     function setUnrestricted(bool _unrestricted) public
     {
         require (unrestrictedControllers[msg.sender], "Not an unrestricted controller");
@@ -120,18 +129,17 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
         parameters = _parameters;
     }
 
-    function setSellStakeRateMultiplier(uint8 multiplier) public
+    function setPoolTaxRate(address pool, uint16 taxRate) public
     {
         require (feeControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
-        require (multiplier > 0 && multiplier <= 20 , "Must be between 1 and 20"); // protecting everyone from Ponzo
-        
-        sellStakeRateMultiplier = multiplier;
+        require (taxRate <= 10000, "Fee rate must be less than or equal to 100%");
+        poolsTaxRates[pool] = taxRate;
     }
 
     function setDumpTax(uint16 startTaxRate, uint256 durationInSeconds) public
     {
         require (feeControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
-        require (startTaxRate <= 1000, "Dump tax rate should be less than or equal to 10%");  // protecting everyone from Ponzo
+        require (startTaxRate <= 2500, "Dump tax rate must be less than or equal to 25%");
 
         dumpTaxStartRate = startTaxRate;
         dumpTaxDurationInSeconds = durationInSeconds;
@@ -227,20 +235,14 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
             return (0, new TransferGateTarget[](0));
         }
         RootKitTransferGateParameters memory params = parameters;
-        burn = amount * params.burnRate / 10000;
-
-        if (to == address(taxedPool))
-        {
-            burn = burn + amount * getDumpTax() / 10000;
-        }
+        
+        burn =  amount * (poolsTaxRates[to] > params.burnRate ? poolsTaxRates[to] + getDumpTax() : params.burnRate) / 10000;
 
         targets = new TransferGateTarget[]((params.devRate > 0 ? 1 : 0) + (params.stakeRate > 0 ? 1 : 0));
         uint256 index = 0;
         if (params.stakeRate > 0) {
             targets[index].destination = params.stake;
-            targets[index++].amount = to == address(taxedPool) 
-                ? amount * params.stakeRate * sellStakeRateMultiplier / 10000  
-                : amount * params.stakeRate / 10000;
+            targets[index++].amount = amount * params.stakeRate / 10000;
         }
         if (params.devRate > 0) {
             targets[index].destination = params.dev;
