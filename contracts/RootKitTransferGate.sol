@@ -66,9 +66,7 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     mapping (address => uint16) public poolsTaxRates;
 
     mapping (address => uint256) public liquiditySupply;
-    address public mustUpdate; 
-
-
+    address public mustUpdate;
 
     uint16 public dumpTaxStartRate; 
     uint256 public dumpTaxDurationInSeconds;
@@ -94,7 +92,7 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
         unrestrictedControllers[unrestrictedController] = allow;
     }
 
-        function setFreeParticipantController(address freeParticipantController, bool allow) public ownerOnly()
+    function setFreeParticipantController(address freeParticipantController, bool allow) public ownerOnly()
     {
         freeParticipantControllers[freeParticipantController] = allow;
     }
@@ -103,11 +101,13 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     {
         feeControllers[feeController] = allow;
     }
-        function setFreeParticipant(address participant, bool free) public
+    
+    function setFreeParticipant(address participant, bool free) public
     {
         require (freeParticipantControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
         freeParticipant[participant] = free;
     }
+    
     function setUnrestricted(bool _unrestricted) public
     {
         require (unrestrictedControllers[msg.sender], "Not an unrestricted controller");
@@ -236,7 +236,7 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
         }
         RootKitTransferGateParameters memory params = parameters;
         
-        burn =  amount * (poolsTaxRates[to] > params.burnRate ? poolsTaxRates[to] + getDumpTax() : params.burnRate) / 10000;
+        burn = amount * (poolsTaxRates[to] > params.burnRate ? poolsTaxRates[to] + getDumpTax() : params.burnRate) / 10000;
 
         targets = new TransferGateTarget[]((params.devRate > 0 ? 1 : 0) + (params.stakeRate > 0 ? 1 : 0));
         uint256 index = 0;
