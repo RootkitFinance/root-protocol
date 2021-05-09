@@ -11,6 +11,7 @@ import "./RootKit.sol";
 import "./SafeMath.sol";
 import "./UniswapV2Library.sol";
 import "./IUniswapV2Factory.sol";
+import "./IUniswapV2Router02.sol";
 import "./TokensRecoverable.sol";
 import "./EnumerableSet.sol";
 
@@ -19,17 +20,28 @@ contract RootKitTwoPoolCalculator is IFloorCalculator, TokensRecoverable
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    RootKit immutable rootKit;
+    IERC20 immutable rootKit;
+    IERC20 immutable keth;
+    IERC20 immutable weth;
+    address public immutable wethPair;
+    address public immutable kethPair;
     IUniswapV2Factory immutable uniswapV2Factory;
+    IUniswapV2Router02 immutable uniswapV2Router;
     EnumerableSet.AddressSet ignoredAddresses;
 
-    constructor(RootKit _rootKit, IUniswapV2Factory _uniswapV2Factory)
+    constructor(IERC20 _rootKit, IERC20 _keth, IERC20 _weth, IUniswapV2Factory _uniswapV2Factory, IUniswapV2Router02 _uniswapV2Router)
     {
         rootKit = _rootKit;
+        keth = _keth;
+        weth = _weth;
         uniswapV2Factory = _uniswapV2Factory;
+        uniswapV2Router = _uniswapV2Router;
+
+        kethPair = _uniswapV2Factory.getPair(address(_keth), address(_rootKit));
+        wethPair = _uniswapV2Factory.getPair(address(_weth), address(_rootKit));
     }    
 
-    function set(address ignoredAddress, bool add) public ownerOnly()
+    function setIgnoredAddress(address ignoredAddress, bool add) public ownerOnly()
     {
         if (add) 
         { 
@@ -66,42 +78,41 @@ contract RootKitTwoPoolCalculator is IFloorCalculator, TokensRecoverable
         return total;
     }
 
-    function calculateExcessInPool(IERC20 token, address pair, uint256 rootKitTotalSupply, uint256 rootKitPoolsLiquidity) internal view returns (uint256)
-    {
-        uint256 liquidityShare = rootKit.balanceOf(pair).mul(1e12).div(rootKitPoolsLiquidity);
-        uint256 freeRootKit = (rootKitTotalSupply.sub(rootKitPoolsLiquidity)).mul(liquidityShare).div(1e12);
-
-        uint256 sellAllProceeds = 0;
-        if (freeRootKit > 0) {
-            address[] memory path = new address[](2);
-            path[0] = address(rootKit);
-            path[1] = address(token);
-            uint256[] memory amountsOut = UniswapV2Library.getAmountsOut(address(uniswapV2Factory), freeRootKit, path);
-            sellAllProceeds = amountsOut[1];
-        }
-
-        uint256 backingInPool = token.balanceOf(pair);
-        if (backingInPool <= sellAllProceeds) { return 0; }
-        uint256 excessInPool = backingInPool - sellAllProceeds;
-
-        return excessInPool;
-    }
-
+        // returns the amount currently available to be swept
     function calculateSubFloor(IERC20 wrappedToken, IERC20 backingToken) public override view returns (uint256) // backing token = keth
     {
-        address kethPair = UniswapV2Library.pairFor(address(uniswapV2Factory), address(rootKit), address(backingToken));
-        address wethPair = UniswapV2Library.pairFor(address(uniswapV2Factory), address(rootKit), address(wrappedToken));   
-        
-        uint256 rootKitTotalSupply = rootKit.totalSupply().sub(ignoredAddressesTotalBalance());
-        uint256 rootKitPoolsLiquidity = rootKit.balanceOf(kethPair).add(rootKit.balanceOf(wethPair));
-        
-        uint256 excessInKethPool = calculateExcessInPool(backingToken, kethPair, rootKitTotalSupply, rootKitPoolsLiquidity);
-        uint256 excessInWethPool = calculateExcessInPool(wrappedToken, wethPair, rootKitTotalSupply, rootKitPoolsLiquidity);
-        uint256 excessInPools = excessInKethPool.add(excessInWethPool);
+        uint256 totalRootInPairs = rootKit.balanceOf(kethPair).add(rootKit.balanceOf(wethPair));
+        uint256 totalBaseAndEliteInPairs = backingToken.balanceOf(kethPair).add(wrappedToken.balanceOf(wethPair));
+        uint256 rootKitCirculatingSupply = rootKit.totalSupply().sub(totalRootInPairs).sub(ignoredAddressesTotalBalance());
 
-        uint256 requiredBacking = backingToken.totalSupply().sub(excessInPools);
-        uint256 currentBacking = wrappedToken.balanceOf(address(backingToken));
-        if (requiredBacking >= currentBacking) { return 0; }
-        return currentBacking - requiredBacking;
+        uint256 amountUntilFloor = uniswapV2Router.getAmountOut(rootKitCirculatingSupply, totalRootInPairs, totalBaseAndEliteInPairs) * 100 / 94; //includes burn
+        uint256 totalExcessInPools = totalBaseAndEliteInPairs.sub(amountUntilFloor);
+        uint256 previouslySwept = backingToken.totalSupply().sub(wrappedToken.balanceOf(address(backingToken)));
+
+        if (previouslySwept >= totalExcessInPools) { return 0; }
+
+        return totalExcessInPools.sub(previouslySwept);
+
+
     }
+
+
+    function getAbsoluteFloorPrice() public view returns (uint256)
+    {
+        uint256 totalRootInPairs = rootKit.balanceOf(kethPair).add(rootKit.balanceOf(wethPair));
+        uint256 totalBaseAndEliteInPairs = keth.balanceOf(kethPair).add(weth.balanceOf(wethPair));
+        uint256 rootKitCirculatingSupply = rootKit.totalSupply().sub(totalRootInPairs).sub(ignoredAddressesTotalBalance());
+
+        uint256 amountUntilFloor = uniswapV2Router.getAmountOut(rootKitCirculatingSupply, totalRootInPairs, totalBaseAndEliteInPairs) * 100 / 94;
+        uint256 totalExcessInPools = totalBaseAndEliteInPairs.sub(amountUntilFloor);
+        uint256 newTotalRootInPairs = totalRootInPairs + rootKitCirculatingSupply * 100 / 94;
+
+        uint256 priceForOneRootIfZeroHolders = uniswapV2Router.getAmountIn(1e18, totalExcessInPools, newTotalRootInPairs);
+
+        return priceForOneRootIfZeroHolders;
+
+
+    }
+
+
 }
