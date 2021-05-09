@@ -40,31 +40,18 @@ contract LiquidityController is TokensRecoverable, ILiquidityController
         rooted = _rootedToken;
         calculator = _calculator;
 
+        IERC20 _rootedBaseLP = IERC20(_uniswapV2Factory.getPair(address(_base), address(_rootedToken)));
+        IERC20 _rootedEliteLP = IERC20(_uniswapV2Factory.getPair(address(_elite), address(_rootedToken)));
+
         _base.approve(address(_uniswapV2Router), uint256(-1));
         _base.approve(address(_elite), uint256(-1));
-        _rootedToken.approve(address(_uniswapV2Router), uint256(-1));
-        rootedBaseLP = IERC20(_uniswapV2Factory.getPair(address(_base), address(_rootedToken)));
-        rootedBaseLP.approve(address(uniswapV2Router), uint256(-1));
-        _elite.approve(address(_uniswapV2Router), uint256(-1));
-        rootedEliteLP = IERC20(_uniswapV2Factory.getPair(address(_elite), address(_rootedToken)));
-        rootedEliteLP.approve(address(_uniswapV2Router), uint256(-1));
-    }
+        _elite.approve(address(_uniswapV2Router), uint256(-1));       
+        _rootedToken.approve(address(_uniswapV2Router), uint256(-1));       
+        _rootedBaseLP.approve(address(_uniswapV2Router), uint256(-1));       
+        _rootedEliteLP.approve(address(_uniswapV2Router), uint256(-1));
 
-    function calibrate(IERC20 _base, IERC20 _rootedToken, IERC31337 _elite, IFloorCalculator _calculator, RootKitTransferGate _gate) public ownerOnly(){
-        base = _base;       
-        gate = _gate;
-        elite = _elite;
-        rooted = _rootedToken;
-        calculator = _calculator;
-
-        _base.approve(address(uniswapV2Router), uint256(-1));
-        _base.approve(address(_elite), uint256(-1));
-        _rootedToken.approve(address(uniswapV2Router), uint256(-1));
-        rootedBaseLP = IERC20(uniswapV2Factory.getPair(address(_base), address(_rootedToken)));
-        rootedBaseLP.approve(address(uniswapV2Router), uint256(-1));
-        _elite.approve(address(uniswapV2Router), uint256(-1));
-        rootedEliteLP = IERC20(uniswapV2Factory.getPair(address(_elite), address(_rootedToken)));
-        rootedEliteLP.approve(address(uniswapV2Router), uint256(-1));
+        rootedBaseLP = _rootedBaseLP;
+        rootedEliteLP = _rootedEliteLP;
     }
     
     function setCalculatorAndGate(IFloorCalculator _calculator, RootKitTransferGate _gate) public ownerOnly(){
