@@ -19,20 +19,35 @@ contract LiquidityController is TokensRecoverable, ILiquidityController
     using SafeMath for uint256;
     IUniswapV2Router02 immutable uniswapV2Router;
     IUniswapV2Factory immutable uniswapV2Factory;
-    IERC20 rooted;
-    IERC20 base;
-    IERC31337 elite;
-    IERC20 rootedEliteLP;
-    IERC20 rootedBaseLP;
+    IERC20 immutable rooted;
+    IERC20 immutable base;
+    IERC31337 immutable elite;
+    IERC20 immutable rootedEliteLP;
+    IERC20 immutable rootedBaseLP;
     IFloorCalculator calculator;
     RootKitTransferGate gate;
-    mapping (address => bool) public infinitePumpers;
+    mapping (address => bool) public liquidityControllers;
 
-    constructor(IUniswapV2Router02 _uniswapV2Router)
+    constructor(IUniswapV2Router02 _uniswapV2Router, IERC20 _base, IERC20 _rootedToken, IERC31337 _elite, IFloorCalculator _calculator, RootKitTransferGate _gate)
     {
         uniswapV2Router = _uniswapV2Router;
         IUniswapV2Factory _uniswapV2Factory = IUniswapV2Factory(_uniswapV2Router.factory());
         uniswapV2Factory = _uniswapV2Factory;
+        
+        base = _base;       
+        gate = _gate;
+        elite = _elite;
+        rooted = _rootedToken;
+        calculator = _calculator;
+
+        _base.approve(address(_uniswapV2Router), uint256(-1));
+        _base.approve(address(_elite), uint256(-1));
+        _rootedToken.approve(address(_uniswapV2Router), uint256(-1));
+        rootedBaseLP = IERC20(_uniswapV2Factory.getPair(address(_base), address(_rootedToken)));
+        rootedBaseLP.approve(address(uniswapV2Router), uint256(-1));
+        _elite.approve(address(_uniswapV2Router), uint256(-1));
+        rootedEliteLP = IERC20(_uniswapV2Factory.getPair(address(_elite), address(_rootedToken)));
+        rootedEliteLP.approve(address(_uniswapV2Router), uint256(-1));
     }
 
     function calibrate(IERC20 _base, IERC20 _rootedToken, IERC31337 _elite, IFloorCalculator _calculator, RootKitTransferGate _gate) public ownerOnly(){
@@ -51,95 +66,94 @@ contract LiquidityController is TokensRecoverable, ILiquidityController
         rootedEliteLP = IERC20(uniswapV2Factory.getPair(address(_elite), address(_rootedToken)));
         rootedEliteLP.approve(address(uniswapV2Router), uint256(-1));
     }
+    
+    function setCalculatorAndGate(IFloorCalculator _calculator, RootKitTransferGate _gate) public ownerOnly(){
+        calculator = _calculator;
+        gate = _gate;
+    }
+    
+    function setLiquidityController(address controlAddress, bool controller) public ownerOnly(){
+        liquidityControllers[controlAddress] = controller;
+    }
 
-    function balancePriceBase(uint256 amount) public {
-        require(elite.balanceOf(address(this)) == 0, "kETH starting balance must be zero");
-        uint256 startingBalance = base.balanceOf(address(this));
+    modifier liquidityControllerOnly(){
+        require(liquidityControllers[msg.sender], "Not a Liquidity Controller");
+        _;
+    }
+
+    function balancePriceBase(uint256 amount) public override liquidityControllerOnly() {
         amount = buyRootedToken(address(base), amount);
         amount = sellRootedToken(address(elite), amount);
         elite.withdrawTokens(amount);
-        require(startingBalance <= base.balanceOf(address(this)));
     }
 
-    function balancePriceElite(uint256 amount) public {
-        require(elite.balanceOf(address(this)) == 0, "kETH starting balance must be zero");
-        uint256 startingBalance = base.balanceOf(address(this));
+    function balancePriceElite(uint256 amount) public override liquidityControllerOnly() {
         elite.depositTokens(amount);
         amount = buyRootedToken(address(elite), amount);
         amount = sellRootedToken(address(base), amount);
-        require(startingBalance <= base.balanceOf(address(this)));
     }
 
-        // The Pump Button is really fun
-    function setInfinitePumper(address pumper, bool infinite) public ownerOnly() {
-        infinitePumpers[pumper] = infinite;
-    }
-        // Removes liquidity and buys from either pool 
-    function pumpItPonzo (uint256 PUMPIT, address token, uint16 tax, uint256 time) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+    function removeBuyAndTax(uint256 amount, address token, uint16 tax, uint256 time) public override liquidityControllerOnly() {
         gate.setUnrestricted(true);
-        PUMPIT = removeLiq(token, PUMPIT);
-        buyRootedToken(token, PUMPIT);
+        amount = removeLiq(token, amount);
+        buyRootedToken(token, amount);
         gate.setDumpTax(tax, time);
         gate.setUnrestricted(false);
     }
-    function pumpRooted(address token, uint256 amountToSpend, uint16 tax, uint256 time) public override { 
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+
+    function buyAndTax(address token, uint256 amountToSpend, uint16 tax, uint256 time) public override liquidityControllerOnly() { 
         buyRootedToken(token, amountToSpend);
         gate.setDumpTax(tax, time);
     }
 
-        // Sweeps the Base token under the floor to this address
-    function sweepTheFloor() public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+    function sweepFloor() public override liquidityControllerOnly() {
         elite.sweepFloor(address(this));
     }
-        // Move liquidity from Elite pool --->> Base pool
-    function zapEliteToBase(uint256 liquidity) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+
+    function zapEliteToBase(uint256 liquidity) public override liquidityControllerOnly() {
         gate.setUnrestricted(true);
         liquidity = removeLiq(address(elite), liquidity);
         elite.withdrawTokens(liquidity);
         addLiq(address(base), liquidity);
         gate.setUnrestricted(false);
     }
-        // Move liquidity from Base pool --->> Elite pool
-    function zapBaseToElite(uint256 liquidity) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+
+    function zapBaseToElite(uint256 liquidity) public override liquidityControllerOnly() {
         gate.setUnrestricted(true);
         liquidity = removeLiq(address(base), liquidity);
         elite.depositTokens(liquidity);
         addLiq(address(elite), liquidity);
         gate.setUnrestricted(false);
     }
-    function wrapToElite(uint256 baseAmount) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+
+    function wrapToElite(uint256 baseAmount) public override liquidityControllerOnly() {
         elite.depositTokens(baseAmount);
     }
-    function unwrapElite(uint256 eliteAmount) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
-        elite.withdrawTokens(eliteAmount);
+    
+    function unwrapElite(uint256 eliteAmount) public override liquidityControllerOnly() {
+       elite.withdrawTokens(eliteAmount);
     }
-    function addLiquidity(address eliteOrBase, uint256 baseAmount) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+
+    function addLiquidity(address eliteOrBase, uint256 baseAmount) public override liquidityControllerOnly() {
         gate.setUnrestricted(true);
         addLiq(eliteOrBase, baseAmount);
         gate.setUnrestricted(false);
     }
-    function removeLiquidity (address eliteOrBase, uint256 tokens) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+
+    function removeLiquidity (address eliteOrBase, uint256 tokens) public override liquidityControllerOnly() {
         gate.setUnrestricted(true);
         removeLiq(eliteOrBase, tokens);
         gate.setUnrestricted(false);
     }
-    function buyRooted(address token, uint256 amountToSpend) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+
+    function buyRooted(address token, uint256 amountToSpend) public override liquidityControllerOnly() {
         buyRootedToken(token, amountToSpend);
     }
-    function sellRooted(address token, uint256 amountToSpend) public override {
-        require (msg.sender == owner || infinitePumpers[msg.sender], "You Wish!!!");
+    
+    function sellRooted(address token, uint256 amountToSpend) public override liquidityControllerOnly() {
         sellRootedToken(token, amountToSpend);
     }
+
     function addLiq(address eliteOrBase, uint256 baseAmount) internal {
         uniswapV2Router.addLiquidity(address(eliteOrBase), address(rooted), baseAmount, rooted.balanceOf(address(this)), 0, 0, address(this), block.timestamp);
     }

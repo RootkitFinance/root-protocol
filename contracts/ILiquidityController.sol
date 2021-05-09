@@ -3,9 +3,11 @@ pragma solidity ^0.7.4;
 
 interface ILiquidityController
 {
-    function pumpItPonzo (uint256 PUMPIT, address token, uint16 tax, uint256 time) external;
-    function pumpRooted(address token, uint256 amountToSpend, uint16 tax, uint256 time) external;
-    function sweepTheFloor() external;
+    function balancePriceBase(uint256 amount) external;
+    function balancePriceElite(uint256 amount) external;
+    function removeBuyAndTax(uint256 amount, address token, uint16 tax, uint256 time) external;
+    function buyAndTax(address token, uint256 amountToSpend, uint16 tax, uint256 time) external;
+    function sweepFloor() external;
     function zapEliteToBase(uint256 liquidity) external;
     function zapBaseToElite(uint256 liquidity) external;
     function wrapToElite(uint256 baseAmount) external;
@@ -14,5 +16,4 @@ interface ILiquidityController
     function removeLiquidity(address eliteOrBase, uint256 tokens) external;    
     function buyRooted(address token, uint256 amountToSpend) external;
     function sellRooted(address token, uint256 amountToSpend) external;
-    
 }

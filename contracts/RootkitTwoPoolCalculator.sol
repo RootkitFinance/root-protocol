@@ -92,8 +92,6 @@ contract RootKitTwoPoolCalculator is IFloorCalculator, TokensRecoverable
         if (previouslySwept >= totalExcessInPools) { return 0; }
 
         return totalExcessInPools.sub(previouslySwept);
-
-
     }
 
 
@@ -110,9 +108,5 @@ contract RootKitTwoPoolCalculator is IFloorCalculator, TokensRecoverable
         uint256 priceForOneRootIfZeroHolders = uniswapV2Router.getAmountIn(1e18, totalExcessInPools, newTotalRootInPairs);
 
         return priceForOneRootIfZeroHolders;
-
-
     }
-
-
 }
