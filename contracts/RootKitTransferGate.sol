@@ -26,8 +26,6 @@ import "./SafeERC20.sol";
 import "./SafeMath.sol";
 import "./TokensRecoverable.sol";
 import "./ITransferGate.sol";
-import "./FreeParticipantRegistry.sol";
-import "./BlackListRegistry.sol";
 
 struct RootKitTransferGateParameters
 {
@@ -56,8 +54,6 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     IUniswapV2Router02 public uniswapV2Router;
     IUniswapV2Factory public uniswapV2Factory;
     RootKit immutable rootKit;
-    FreeParticipantRegistry public freeParticipantRegistry;
-    BlackListRegistry public blackListRegistry;
 
     mapping (address => AddressState) public addressStates;
     IERC20[] public allowedPoolTokens;
@@ -65,6 +61,7 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     bool public unrestricted;
     mapping (address => bool) public unrestrictedControllers;
     mapping (address => bool) public feeControllers;
+    mapping (address => bool) public freeParticipantControllers;
     mapping (address => bool) public freeParticipant;
     mapping (address => uint16) public poolsTaxRates;
 
@@ -97,7 +94,7 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
 
     function setFreeParticipantController(address freeParticipantController, bool allow) public ownerOnly()
     {
-        freeParticipantRegistry.setFreeParticipantController(freeParticipantController, allow);
+        freeParticipantControllers[freeParticipantController] = allow;
     }
 
     function setFeeControllers(address feeController, bool allow) public ownerOnly()
@@ -107,7 +104,7 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     
     function setFreeParticipant(address participant, bool free) public
     {
-        require (msg.sender == owner || freeParticipantRegistry.freeParticipantControllers(msg.sender), "Not an owner or free participant controller");
+        require (freeParticipantControllers[msg.sender] || msg.sender == owner, "Not an owner or fee controller");
         freeParticipant[participant] = free;
     }
     
@@ -115,16 +112,6 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
     {
         require (unrestrictedControllers[msg.sender], "Not an unrestricted controller");
         unrestricted = _unrestricted;
-    }
-
-    function setFreeParticipantRegistry(FreeParticipantRegistry _freeParticipantRegistry) public ownerOnly()
-    {
-        freeParticipantRegistry = _freeParticipantRegistry;
-    }
-
-    function setBlackListRegistry(BlackListRegistry _blackListRegistry) public ownerOnly()
-    {
-        blackListRegistry = _blackListRegistry;
     }
 
     function setParameters(address _dev, address _stake, uint16 _stakeRate, uint16 _burnRate, uint16 _devRate) public ownerOnly()
@@ -244,14 +231,9 @@ contract RootKitTransferGate is TokensRecoverable, ITransferGate
                 require (IERC20(from).totalSupply() >= liquiditySupply[from], "Cannot remove liquidity");            
             }
         }
-        if (unrestricted || freeParticipantRegistry.freeParticipant(from) || freeParticipantRegistry.freeParticipant(to)) {
+        if (unrestricted || freeParticipant[from] || freeParticipant[to]) {
             return (0, new TransferGateTarget[](0));
         }
-
-        if (blackListRegistry.blackList(from) || blackListRegistry.blackList(to)) {
-            return (amount, new TransferGateTarget[](0));
-        }
-
         RootKitTransferGateParameters memory params = parameters;
         
         burn = amount * (poolsTaxRates[to] > params.burnRate ? poolsTaxRates[to] + getDumpTax() : params.burnRate) / 10000;
