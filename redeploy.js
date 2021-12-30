@@ -93,7 +93,7 @@
         await txResponse.wait();
         console.log('Vault, Arbitrage, and SingleSideLiquidityAdder are Free Participants in the gate.');
 
-        txResponse = await arbitrageContract.setArbitrageur(bot);
+        txResponse = await arbitrageContract.setArbitrageur(bot, true);
         await txResponse.wait();
         txResponse = await singleSideLiquidityAdderContract.setBot(bot);
         await txResponse.wait();
