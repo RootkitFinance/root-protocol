@@ -12,7 +12,7 @@
         console.log('Running deploy script...')
 
         const deployer = "0x804CC8D469483d202c69752ce0304F71ae14ABdf";
-        const router = "0x10ed43c718714eb63d5aa57b78b54704e256024e";
+        const router = "0x7a250d5630b4cf539739df2c5dacb4c659f2488d";
         const baseToken = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
         const eliteToken = "0x93747501F46Ae40b8A4B8F1a1529696AE24ea04e";
         const rootedToken = "0xCb5f72d37685C3D5aD0bB5F982443BC8FcdF570E";
