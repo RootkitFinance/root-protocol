@@ -3,3 +3,4 @@ node_modules
 cache
 deploy.js
 .DS_Store
+data
