@@ -12,6 +12,7 @@
 		const stakingToken = "0x39E9fB78b543748950827BF4c606F58724b67a80"
 		const transferGate = "0x105E66f0bfD5b3b1E386D0dC6EC00F3342EF3fF6";
 		const vault = "0xc547D2bc0C3606602a4C9A530BFadDBc07A7f06F";
+		const fiatInitialSupplyMinter = "0x5a0748f8d40b7884e182fc4994d8d4a115a8cbf7"
 
 		const signer = (new ethers.providers.Web3Provider(web3Provider)).getSigner();
 
@@ -25,7 +26,8 @@
 			singleSideLiquidityAdder,
 			stakingToken,
 			transferGate,
-			vault
+			vault,
+			fiatInitialSupplyMinter
 		];
 
 		const arbitrageContract = await ownedFactory.attach(arbitrage);
